@@ -1,0 +1,31 @@
+name: release
+
+# Push a tag like v1.0.0 to build, check and attach the wheel, sdist and checksums to a GitHub release.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -e ".[dev]" build
+      - name: Tag must match the package version
+        run: test "v$(python -c 'import mcpguard; print(mcpguard.__version__)')" = "$GITHUB_REF_NAME"
+      - run: python scripts/check.py --full
+      - run: python -m build
+      - run: cd dist && sha256sum * > SHA256SUMS
+      - name: Create the release (release candidates are marked as pre-releases)
+        run: |
+          flags=""
+          case "$GITHUB_REF_NAME" in *rc*|*a[0-9]*|*b[0-9]*) flags="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file <(python scripts/release_notes.py) $flags
+        env:
+          GH_TOKEN: ${{ github.token }}

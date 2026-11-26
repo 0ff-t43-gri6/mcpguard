@@ -1,0 +1,542 @@
+{
+ "version": 1,
+ "updated": "2026-11-16",
+ "advisories": [
+  {
+   "id": "postmark-mcp",
+   "title": "postmark-mcp email backdoor",
+   "date": "2025-09",
+   "kind": "campaign",
+   "component": "npm package postmark-mcp",
+   "summary": "An npm package copying Postmark's MCP server worked normally for 15 releases, then version 1.0.16 added one line that blind-copied every email it sent to the attacker.",
+   "technique": "malicious-update",
+   "controls": [
+    "advisory_match",
+    "launch_pinning",
+    "sandbox",
+    "allowed_hosts"
+   ],
+   "verdict": "limits",
+   "note": "The package name is refused at start. The general case (a trusted package turning bad in an update) is limited by pinning versions and by a sandbox; a gateway cannot see a BCC added inside the server.",
+   "sources": [
+    "https://www.koi.ai/blog/postmark-mcp-npm-malicious-backdoor-email-theft",
+    "https://snyk.io/blog/malicious-mcp-server-on-npm-postmark-mcp-harvests-emails",
+    "https://thehackernews.com/2025/09/first-malicious-mcp-server-found.html"
+   ],
+   "packages": [
+    {
+     "ecosystem": "npm",
+     "name": "postmark-mcp",
+     "malicious": true,
+     "affected": ">=1.0.16"
+    }
+   ],
+   "indicators": {
+    "hosts": [
+     "giftshop.club"
+    ]
+   },
+   "caveat": ""
+  },
+  {
+   "id": "github-whatsapp-exfil",
+   "title": "GitHub and WhatsApp MCP data exfiltration",
+   "date": "2025",
+   "kind": "research",
+   "component": "GitHub MCP server, WhatsApp MCP server",
+   "summary": "Injected instructions in content the agent read (an issue, a message) steered it into using broadly scoped tokens to read private repositories or message history and send them out.",
+   "technique": "indirect-injection",
+   "controls": [
+    "result_scan",
+    "dlp_taint",
+    "ask_sensitive",
+    "allowed_hosts"
+   ],
+   "verdict": "limits",
+   "note": "Injected instructions in results are scanned, secrets and personal data read by one tool are tracked so they cannot leave through another, and sending tools can require approval. Narrow the token itself: mcpguard cannot shrink an over-broad token.",
+   "sources": [],
+   "packages": [],
+   "indicators": {},
+   "caveat": "Dates and details in the submitted list were not confirmed against a primary source."
+  },
+  {
+   "id": "oura-smartloader",
+   "title": "Fake Oura MCP server (SmartLoader / StealC)",
+   "date": "2026-02",
+   "kind": "campaign",
+   "component": "Cloned GitHub repositories named MCP-oura",
+   "summary": "Attackers cloned a legitimate Oura Ring MCP server, built fake forks and contributors around it, listed it in MCP registries, and used it to install an information stealer.",
+   "technique": "trojan-server",
+   "controls": [
+    "advisory_match",
+    "sandbox",
+    "launch_audit"
+   ],
+   "verdict": "limits",
+   "note": "Known repository names are flagged in launch commands. Malware that runs when the server starts is outside what a gateway inspects; only a sandbox contains it.",
+   "sources": [
+    "https://www.straiker.ai/blog/smartloader-clones-oura-ring-mcp-to-deploy-supply-chain-attack",
+    "https://thehackernews.com/2026/02/smartloader-attack-uses-trojanized-oura.html"
+   ],
+   "packages": [],
+   "indicators": {
+    "strings": [
+     "SiddhiBagul/MCP-oura",
+     "YuzeHao2023/MCP-oura",
+     "punkpeye/MCP-oura"
+    ]
+   },
+   "caveat": ""
+  },
+  {
+   "id": "miasma",
+   "title": "Miasma worm: poisoned AI tool configuration",
+   "date": "2026-06",
+   "kind": "campaign",
+   "component": "Repository config files for Claude Code, Cursor, Gemini CLI, VS Code",
+   "summary": "A self-spreading worm committed configuration files for AI coding tools into repositories, so opening the project ran a credential-stealing payload. 73 Microsoft repositories were disabled in one sweep.",
+   "technique": "poisoned-config",
+   "controls": [
+    "config_audit",
+    "launch_audit"
+   ],
+   "verdict": "detects",
+   "note": "`mcpguard audit-configs <folder>` reads the MCP and agent config files in a project before you open it and flags commands that download or run scripts. It cannot stop an IDE from running a config you have not audited.",
+   "sources": [
+    "https://labs.cloudsecurityalliance.org/research/csa-research-note-miasma-ironworm-ai-coding-supply-chain-202/",
+    "https://www.stepsecurity.io/blog/miasma-worm-hits-microsoft-again-azure-functions-action-and-72-other-repositories-disabled-after-supply-chain-attack-targeting-ai-coding-agents"
+   ],
+   "packages": [],
+   "indicators": {},
+   "caveat": ""
+  },
+  {
+   "id": "deadbugz",
+   "title": "Deadbugz: tool descriptions that change after three calls",
+   "date": "2026-08",
+   "kind": "campaign",
+   "component": "Remote MCP server \"productivity-suite\"",
+   "summary": "A server offered two harmless tools, then after three calls rewrote its tool and prompt descriptions to tell the agent to collect SSH keys, cloud credentials and shell history and hide it.",
+   "technique": "runtime-rug-pull",
+   "controls": [
+    "pinning",
+    "definition_scan",
+    "advisory_match",
+    "result_scan"
+   ],
+   "verdict": "blocks",
+   "note": "Definitions are pinned when first seen and served from mcpguard's copy. A changed definition is quarantined before the model sees it, and the new text is scanned as well. The published server name and endpoint are refused.",
+   "sources": [
+    "https://www.pillar.security/blog/deadbugz-currently-active-mcp-supply-chain-campaign",
+    "https://labs.cloudsecurityalliance.org/research/csa-research-note-deadbugz-mcp-supply-chain-20260830-csa-sty/"
+   ],
+   "packages": [],
+   "indicators": {
+    "hosts": [
+     "productivity-suite-mcp.onrender.com"
+    ],
+    "server_names": [
+     "productivity-suite"
+    ]
+   },
+   "caveat": ""
+  },
+  {
+   "id": "stdio-by-design",
+   "title": "MCP STDIO transport: configuration becomes command execution",
+   "date": "2026-04",
+   "kind": "design",
+   "component": "Official MCP SDKs; LangFlow, Flowise, LiteLLM and others",
+   "summary": "Whatever command an MCP server entry names is run on the host. Products that let untrusted input reach that entry gave attackers command execution; more than ten CVEs followed.",
+   "technique": "config-to-command",
+   "controls": [
+    "launch_audit",
+    "config_audit",
+    "config_trusted"
+   ],
+   "verdict": "detects",
+   "note": "mcpguard starts only the servers in its own config file, never through a shell, and flags launch commands that are shells, downloaders or encoded scripts. Other products with this flaw need their own patches.",
+   "sources": [
+    "https://www.ox.security/blog/mcp-supply-chain-advisory-rce-vulnerabilities-across-the-ai-ecosystem",
+    "https://labs.cloudsecurityalliance.org/research/mcp-design-rce-supply-chain-v1-csa-styled/"
+   ],
+   "packages": [],
+   "indicators": {},
+   "caveat": ""
+  },
+  {
+   "id": "CVE-2026-52869",
+   "title": "MCP Python SDK: session not bound to its user",
+   "date": "2026-06",
+   "kind": "cve",
+   "component": "MCP Python SDK (mcp) before 1.27.2",
+   "summary": "A request carrying another user's session ID was accepted without checking that the authenticated caller owned the session.",
+   "technique": "session-hijack",
+   "controls": [
+    "http_auth"
+   ],
+   "verdict": "blocks",
+   "note": "mcpguard's own HTTP endpoint binds each session to the client token that created it. Servers built on an affected SDK still need upgrading.",
+   "sources": [
+    "https://defensia.cloud/cve/CVE-2026-52869",
+    "https://github.com/mcp-security-project/mcp-cve-project"
+   ],
+   "packages": [
+    {
+     "ecosystem": "pypi",
+     "name": "mcp",
+     "affected": "<1.27.2",
+     "fixed": "1.27.2",
+     "library": true
+    }
+   ],
+   "indicators": {},
+   "caveat": ""
+  },
+  {
+   "id": "CVE-2026-115563",
+   "title": "MCP Python SDK: OAuth secrets sent to the attacker's token endpoint",
+   "date": "2026-09",
+   "kind": "cve",
+   "component": "MCP Python SDK (mcp) 1.9.1-1.29.1 and 2.0.0-2.1.1",
+   "summary": "A malicious server could name a real login service as issuer but its own token endpoint, and receive the client secret, authorization code and PKCE verifier.",
+   "technique": "oauth-mixup",
+   "controls": [
+    "no_oauth_client"
+   ],
+   "verdict": "blocks",
+   "note": "mcpguard connects to remote servers with a bearer token you configure and does no OAuth discovery, so it has no token endpoint to be redirected. Clients built on an affected SDK need 1.30.0 or 2.2.0.",
+   "sources": [
+    "https://thehackernews.com/2026/09/official-mcp-python-sdk-flaw-can-let.html",
+    "https://labs.cloudsecurityalliance.org/research/csa-research-note-mcp-python-sdk-oauth-flaw-20260930-csa-sty/"
+   ],
+   "packages": [
+    {
+     "ecosystem": "pypi",
+     "name": "mcp",
+     "affected": ">=1.9.1,<1.30.0",
+     "fixed": "1.30.0",
+     "library": true
+    },
+    {
+     "ecosystem": "pypi",
+     "name": "mcp",
+     "affected": ">=2.0.0,<2.2.0",
+     "fixed": "2.2.0",
+     "library": true
+    }
+   ],
+   "indicators": {},
+   "caveat": ""
+  },
+  {
+   "id": "CVE-2026-111767",
+   "title": "MCP TypeScript SDK: tasks visible across sessions",
+   "date": "2026-10",
+   "kind": "cve",
+   "component": "@modelcontextprotocol/sdk 1.24.0 up to 1.32.0",
+   "summary": "The experimental task store did not record which session created a task, so clients sharing it could list, read and cancel each other's tasks.",
+   "technique": "cross-session",
+   "controls": [
+    "http_auth"
+   ],
+   "verdict": "outside",
+   "note": "This is inside the server's SDK. mcpguard keeps its own clients' sessions apart but cannot separate tasks inside a server. Upgrade the server's SDK to 1.32.0.",
+   "sources": [
+    "https://advisories.gitlab.com/npm/@modelcontextprotocol/sdk/CVE-2026-111767/"
+   ],
+   "packages": [
+    {
+     "ecosystem": "npm",
+     "name": "@modelcontextprotocol/sdk",
+     "affected": ">=1.24.0,<1.32.0",
+     "fixed": "1.32.0",
+     "library": true
+    }
+   ],
+   "indicators": {},
+   "caveat": ""
+  },
+  {
+   "id": "CVE-2026-0621",
+   "title": "MCP TypeScript SDK: URI template ReDoS",
+   "date": "2026-01",
+   "kind": "cve",
+   "component": "@modelcontextprotocol/sdk before 1.25.2",
+   "summary": "A crafted resource URI made a generated regular expression backtrack catastrophically and hang the server.",
+   "technique": "redos",
+   "controls": [
+    "rate_limit",
+    "redos_guard"
+   ],
+   "verdict": "limits",
+   "note": "Rate limits and per-call timeouts bound the damage to one server, which is restarted. mcpguard's own patterns are tested to stay linear. Upgrade the server's SDK to 1.25.2.",
+   "sources": [
+    "https://github.com/advisories/GHSA-8r9q-7v3j-jr4g"
+   ],
+   "packages": [
+    {
+     "ecosystem": "npm",
+     "name": "@modelcontextprotocol/sdk",
+     "affected": "<1.25.2",
+     "fixed": "1.25.2",
+     "library": true
+    }
+   ],
+   "indicators": {},
+   "caveat": ""
+  },
+  {
+   "id": "CVE-2025-6514",
+   "title": "mcp-remote: command injection from a server's OAuth metadata",
+   "date": "2025-07",
+   "kind": "cve",
+   "component": "mcp-remote 0.0.5-0.1.15",
+   "summary": "A malicious remote server could return a crafted authorization endpoint that ran operating-system commands on the machine running mcp-remote.",
+   "technique": "client-rce",
+   "controls": [
+    "advisory_match",
+    "direct_http"
+   ],
+   "verdict": "blocks",
+   "note": "A launch command using an affected mcp-remote version is flagged. mcpguard can connect to remote servers itself, so mcp-remote is not needed behind it.",
+   "sources": [
+    "https://thehackernews.com/2025/07/critical-mcp-remote-vulnerability.html",
+    "https://www.govinfosecurity.com/serious-flaws-patched-in-model-context-protocol-tools-a-28924"
+   ],
+   "packages": [
+    {
+     "ecosystem": "npm",
+     "name": "mcp-remote",
+     "affected": ">=0.0.5,<0.1.16",
+     "fixed": "0.1.16"
+    }
+   ],
+   "indicators": {},
+   "caveat": ""
+  },
+  {
+   "id": "CVE-2025-49596",
+   "title": "MCP Inspector: web page to command execution",
+   "date": "2025-06",
+   "kind": "cve",
+   "component": "MCP Inspector before 0.14.1",
+   "summary": "The Inspector's local proxy accepted requests without authentication, so a web page could make it launch commands.",
+   "technique": "local-csrf",
+   "controls": [
+    "advisory_match",
+    "dashboard_auth"
+   ],
+   "verdict": "blocks",
+   "note": "mcpguard's own dashboard requires a per-install token and checks the Host header, so a web page cannot drive it. An affected Inspector version in a launch command is flagged.",
+   "sources": [
+    "https://www.bankinfosecurity.com/serious-flaws-patched-in-model-context-protocol-tools-a-28924"
+   ],
+   "packages": [
+    {
+     "ecosystem": "npm",
+     "name": "@modelcontextprotocol/inspector",
+     "affected": "<0.14.1",
+     "fixed": "0.14.1"
+    }
+   ],
+   "indicators": {},
+   "caveat": ""
+  },
+  {
+   "id": "CVE-2025-54136",
+   "title": "Cursor (MCPoison): approved MCP config swapped for a malicious one",
+   "date": "2025-08",
+   "kind": "cve",
+   "component": "Cursor before 1.3",
+   "summary": "Once an MCP entry in a shared repository was approved, its command could be changed without a new prompt.",
+   "technique": "poisoned-config",
+   "controls": [
+    "config_audit",
+    "launch_audit"
+   ],
+   "verdict": "detects",
+   "note": "`mcpguard audit-configs` re-reads project MCP configs and flags risky commands each time you run it. The fix itself is upgrading Cursor.",
+   "sources": [
+    "https://thehackernews.com/search/label/MCP%20Protocol"
+   ],
+   "packages": [],
+   "indicators": {},
+   "caveat": ""
+  },
+  {
+   "id": "CVE-2025-68145",
+   "title": "mcp-server-git: repository boundary bypass",
+   "date": "2025-12",
+   "kind": "cve",
+   "component": "mcp-server-git (reference server)",
+   "summary": "Path checks on the configured repository could be bypassed, reaching repositories outside the allowed folder.",
+   "technique": "path-escape",
+   "controls": [
+    "allowed_paths",
+    "sandbox"
+   ],
+   "verdict": "blocks",
+   "note": "`allowed_paths` refuses calls whose path arguments leave the listed folders, and a sandbox mounts only those folders.",
+   "sources": [
+    "https://cloudtweaks.com/2026/03/mcp-security-the-protocol-nobody-secured-before-shipping/"
+   ],
+   "packages": [
+    {
+     "ecosystem": "pypi",
+     "name": "mcp-server-git",
+     "advice": "use the latest release"
+    }
+   ],
+   "indicators": {},
+   "caveat": ""
+  },
+  {
+   "id": "CVE-2026-30623",
+   "title": "STDIO command injection in AI platforms",
+   "date": "2026-04",
+   "kind": "cve",
+   "component": "Products in the OX Security STDIO disclosure",
+   "summary": "Server launch parameters supplied through a product's UI or API were executed on the host.",
+   "technique": "config-to-command",
+   "controls": [
+    "launch_audit",
+    "config_trusted"
+   ],
+   "verdict": "detects",
+   "note": "Same family as the STDIO design issue above: mcpguard only starts what its own config file names and flags shell-like launch commands.",
+   "sources": [
+    "https://www.ox.security/blog/mcp-supply-chain-advisory-rce-vulnerabilities-across-the-ai-ecosystem"
+   ],
+   "packages": [],
+   "indicators": {},
+   "caveat": "Sources disagree on which product this CVE number belongs to."
+  },
+  {
+   "id": "CVE-2026-33032",
+   "title": "nginx-ui (MCPwn): unauthenticated MCP endpoint",
+   "date": "2026-03",
+   "kind": "cve",
+   "component": "nginx-ui 2.3.5 and earlier",
+   "summary": "One of two MCP HTTP endpoints skipped authentication, letting anyone on the network change NGINX configuration.",
+   "technique": "missing-auth",
+   "controls": [
+    "http_auth"
+   ],
+   "verdict": "blocks",
+   "note": "mcpguard refuses to listen beyond loopback without client tokens and checks the token on every request path. An exposed nginx-ui still needs patching.",
+   "sources": [
+    "https://labs.cloudsecurityalliance.org/research/csa-research-note-nginx-ui-mcp-cve-20260416-csa-styled/",
+    "https://www.sentinelone.com/vulnerability-database/cve-2026-33032"
+   ],
+   "packages": [],
+   "indicators": {},
+   "caveat": "Sources differ on the fixed version (2.3.4 or later than 2.3.5)."
+  },
+  {
+   "id": "CVE-2026-33017",
+   "title": "Langflow: unauthenticated code execution",
+   "date": "2026-03",
+   "kind": "cve",
+   "component": "Langflow up to 1.8.1",
+   "summary": "A public flow-building endpoint executed attacker-supplied code; exploitation was seen about 20 hours after disclosure.",
+   "technique": "missing-auth",
+   "controls": [],
+   "verdict": "outside",
+   "note": "Not an MCP flaw and not something a gateway in front of tool servers can affect. Upgrade Langflow to 1.9.0 and keep it behind authentication.",
+   "sources": [
+    "https://thehackernews.com/2026/03/critical-langflow-flaw-cve-2026-33017.html"
+   ],
+   "packages": [],
+   "indicators": {},
+   "caveat": ""
+  },
+  {
+   "id": "CVE-2026-73554",
+   "title": "Dolt MCP: 401 returned, query still run",
+   "date": "2026-08",
+   "kind": "cve",
+   "component": "dolt-mcp 0.3.1-0.3.6",
+   "summary": "Requests with an invalid token got a 401 response but processing continued, running database tools with the server's credentials.",
+   "technique": "missing-auth",
+   "controls": [
+    "advisory_match",
+    "http_auth"
+   ],
+   "verdict": "blocks",
+   "note": "An affected version in a launch command is flagged. On mcpguard's own endpoint a rejected request never reaches a server (tested).",
+   "sources": [
+    "https://www.pillar.security/blog/the-security-risks-of-model-context-protocol-mcp",
+    "https://github.com/dolthub/dolt-mcp/security/advisories/GHSA-mgpq-fxxc-h49q"
+   ],
+   "packages": [
+    {
+     "ecosystem": "any",
+     "name": "dolt-mcp",
+     "affected": ">=0.3.1,<0.3.7",
+     "fixed": "0.3.7"
+    }
+   ],
+   "indicators": {},
+   "caveat": ""
+  },
+  {
+   "id": "HCSEC-2026-23",
+   "title": "Terraform MCP Server: token and session exposure (CVE-2026-14869, -16496, -16498)",
+   "date": "2026-07",
+   "kind": "cve",
+   "component": "terraform-mcp-server before 1.1.0",
+   "summary": "In HTTP mode a caller could redirect the server's Terraform token to another address, reuse another user's session, or inherit another user's token.",
+   "technique": "session-hijack",
+   "controls": [
+    "advisory_match",
+    "allowed_hosts",
+    "http_auth"
+   ],
+   "verdict": "limits",
+   "note": "An affected version is flagged. `allowed_hosts` refuses calls that point the server at an unexpected address. The session flaws are inside the server and need 1.1.0.",
+   "sources": [
+    "https://discuss.hashicorp.com/t/hcsec-2026-23-multiple-vulnerabilities-impacting-hashicorp-terraform-mcp-server/77606"
+   ],
+   "packages": [
+    {
+     "ecosystem": "any",
+     "name": "terraform-mcp-server",
+     "affected": "<1.1.0",
+     "fixed": "1.1.0"
+    }
+   ],
+   "indicators": {},
+   "caveat": ""
+  },
+  {
+   "id": "CVE-2026-53708",
+   "title": "ContextForge: SSRF check bypassed by DNS rebinding",
+   "date": "2026-08",
+   "kind": "cve",
+   "component": "mcp-contextforge-gateway before 1.0.3",
+   "summary": "The URL was checked with one DNS lookup and fetched with another, so an attacker could answer the first with a public address and the second with an internal one.",
+   "technique": "ssrf-rebinding",
+   "controls": [
+    "advisory_match",
+    "allowed_hosts",
+    "sandbox"
+   ],
+   "verdict": "limits",
+   "note": "mcpguard flags internal addresses written in arguments and `allowed_hosts` limits which names a server may be pointed at, but the server does the connecting, so a name that later resolves inward is not caught. A sandbox with no network is the firm control.",
+   "sources": [
+    "https://github.com/advisories/GHSA-9hgc-g3w5-67cm"
+   ],
+   "packages": [
+    {
+     "ecosystem": "pypi",
+     "name": "mcp-contextforge-gateway",
+     "affected": "<1.0.3",
+     "fixed": "1.0.3"
+    }
+   ],
+   "indicators": {},
+   "caveat": ""
+  }
+ ]
+}

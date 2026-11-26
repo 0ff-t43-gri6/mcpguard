@@ -1,0 +1,43 @@
+__pycache__/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+
+# Files the gateway writes next to its config
+mcpguard-audit*.jsonl
+mcpguard-audit.jsonl.partial
+mcpguard-pins.json
+mcpguard-baseline.json
+mcpguard-state.json
+mcpguard-approvals/
+mcpguard.log
+mcpguard-audit.key
+audit-archive/
+.dev-requirements.txt
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+
+# Your own copies: state per process, reports, live config, scratch
+mcpguard-state.*.json
+mcpguard.toml
+report.pdf
+report.html
+_to_delete/
+
+# The project website is not part of the first push
+site/
+CLAUDE.md
+CLAUDE.md
+mcpguard-flows.json
+mcpguard-flows.json.lock
+*.lock
+*.zip
+docs/*.png
+docs/pentest-*.md
+docs/devlog.md

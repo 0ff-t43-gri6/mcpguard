@@ -1,0 +1,922 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcpguard</title>
+<style>
+:root {
+  color-scheme: dark;
+  --paper: #0f0f0f;
+  --surface: #1a1a1a;
+  --panel: #141414;
+  --ink: #ffffff;
+  --ink-2: #d4d4d4;
+  --muted: #a3a3a3;
+  --rule: #2a2a2a;
+  --rule-strong: #3d3d3d;
+  --accent: #dafa9c;
+  --accent-ink: #0f0f0f;
+  --accent-soft: #2a3320;
+  --good: #7bd88f;
+  --warning: #fab219;
+  --critical: #ff7b72;
+  --critical-soft: #3a2224;
+  --warning-soft: #3a3120;
+  --grid: #242424;
+  --focus: #dafa9c;
+  --r-sm: 8px;
+  --r-md: 12px;
+  /* No web fonts are requested: this page is local and makes no outside calls. */
+  --mono: "DM Mono", ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  --sans: "Instrument Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+}
+* { box-sizing: border-box; }
+html { background: var(--paper); }
+body {
+  margin: 0; color: var(--ink); font: 15px/1.55 var(--sans);
+  font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { margin: 0; font-weight: 500; letter-spacing: -0.02em; }
+h2 { font-size: 17px; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- top bar ---------- */
+.top {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: baseline; gap: 24px;
+  padding: 18px 32px 16px; border-bottom: 1px solid var(--rule); background: var(--surface);
+}
+.brand { font-size: 18px; font-weight: 500; letter-spacing: -0.03em; display: inline-flex; align-items: center; }
+.brand::before { content: ""; margin-right: 10px; width: 18px; height: 18px; border: 3px solid var(--accent); border-bottom: 0; border-radius: 9px 9px 0 0; }
+.brand span { color: var(--accent); }
+.summary { margin: 0; color: var(--ink-2); font-size: 14px; }
+.modeswitch { display: inline-flex; margin-right: 16px; border: 1px solid var(--rule-strong); border-radius: 999px; padding: 2px; background: var(--paper); }
+.modeswitch[hidden] { display: none; }
+.modeswitch button { border: 0; background: transparent; color: var(--muted); padding: 4px 14px; border-radius: 999px; font-size: 13px; cursor: pointer; }
+.modeswitch button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.modeswitch button:disabled { opacity: 0.5; cursor: wait; }
+.modeswitch[data-state="waiting"] { outline: 1px dashed var(--warning); }
+.modeswitch[data-state="waiting"] button[aria-pressed="true"]::after { content: " (pending)"; font-size: 11px; }
+.right { display: flex; align-items: center; }
+.live { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rule-strong); }
+.live[data-state="live"] .live-dot { background: var(--good); }
+.live[data-state="error"] .live-dot { background: var(--critical); }
+
+/* ---------- layout ---------- */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; min-height: calc(100vh - 58px); }
+.primary { padding: 28px 32px 48px; min-width: 0; }
+.secondary { background: var(--panel); border-left: 1px solid var(--rule); padding: 28px 24px 48px; }
+.secondary > section + section { margin-top: 32px; }
+.section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; margin-bottom: 12px; }
+.section-note { color: var(--muted); font-size: 13px; }
+@media (max-width: 1080px) {
+  .layout { grid-template-columns: 1fr; }
+  .secondary { border-left: 0; border-top: 1px solid var(--rule); }
+  .top { grid-template-columns: 1fr auto; }
+  .summary { grid-column: 1 / -1; grid-row: 2; }
+}
+@media (max-width: 640px) {
+  .primary, .secondary { padding: 20px 16px 32px; }
+  .top { padding: 14px 16px; }
+  .seg { max-width: 100%; overflow-x: auto; }
+  .search { margin-left: 0; width: 100%; }
+  .rec-row { grid-template-columns: 24px auto 1fr; row-gap: 2px; }
+  .rec-row .node { grid-row: span 2; }
+  .rec-row .what { grid-column: 3; }
+  .rec-row .target { grid-column: 2 / 4; }
+  .rec-row .detail { grid-column: 2 / 4; white-space: normal; }
+  .rec-body { margin-left: 24px; }
+  .rec-body dl { grid-template-columns: 1fr; }
+  .rec-body dd { margin-bottom: 6px; }
+}
+
+/* ---------- activity chart ---------- */
+.activity { margin-bottom: 36px; }
+.legend { display: flex; gap: 16px; margin: 0; padding: 0; list-style: none; color: var(--ink-2); font-size: 13px; }
+.legend li { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.chart { position: relative; height: 140px; }
+.chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.axis-text { fill: var(--muted); font-size: 11px; }
+.tooltip {
+  position: absolute; pointer-events: none; z-index: 2; min-width: 150px;
+  background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-sm);
+  padding: 8px 10px; font-size: 12.5px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+}
+.tooltip time { display: block; color: var(--muted); margin-bottom: 4px; }
+.tooltip div { display: flex; align-items: center; gap: 6px; }
+.tooltip b { margin-left: auto; font-weight: 600; padding-left: 12px; }
+.table-view { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.table-view summary { cursor: pointer; width: max-content; }
+.table-view table { margin-top: 8px; max-height: 240px; display: block; overflow: auto; }
+
+/* ---------- ledger ---------- */
+.integrity { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.integrity[data-ok="false"] { color: var(--critical); font-weight: 600; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: var(--r-sm); overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: none; padding: 5px 11px; cursor: pointer; color: var(--ink-2); font-size: 13px; white-space: nowrap; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.search {
+  margin-left: auto; min-width: 200px; padding: 5px 10px; font: inherit; font-size: 13px; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-sm);
+}
+.chain { list-style: none; margin: 0; padding: 0; position: relative; }
+.chain::before {
+  content: ""; position: absolute; left: 11px; top: 14px; bottom: 14px; width: 2px; background: var(--rule);
+}
+.chain[data-broken="true"]::before { background: repeating-linear-gradient(var(--critical) 0 6px, transparent 6px 10px); }
+.rec { position: relative; }
+.rec-row {
+  display: grid; grid-template-columns: 24px 92px 104px minmax(120px, 0.9fr) minmax(0, 2fr);
+  align-items: baseline; gap: 12px; width: 100%; padding: 8px 8px 8px 0; text-align: left;
+  border: 0; border-bottom: 1px solid var(--rule); background: none; cursor: pointer;
+}
+.rec-row:hover { background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.node {
+  justify-self: center; align-self: center; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--paper); border: 2px solid var(--rule-strong); position: relative; z-index: 1;
+}
+.rec[data-kind="allowed"] .node { background: var(--good); border-color: var(--good); }
+.rec[data-kind="blocked"] .node { background: var(--critical); border-color: var(--critical); border-radius: 2px; }
+.rec[data-kind="would_block"] .node { background: var(--warning); border-color: var(--warning); border-radius: 2px; transform: rotate(45deg); }
+.rec[data-kind="decision"] .node { border-color: var(--accent); background: var(--accent); }
+.rec[data-kind="problem"] .node { border-color: var(--critical); }
+.rec time { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.what { font-weight: 600; font-size: 13.5px; }
+.target { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+.detail { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+.rec-body { margin: 0 0 0 36px; padding: 10px 0 16px; border-bottom: 1px solid var(--rule); font-size: 13px; }
+.rec-body dl { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 4px 16px; margin: 0; }
+.rec-body dt { color: var(--muted); }
+.rec-body dd { margin: 0; overflow-wrap: anywhere; }
+.hash { font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
+.findings { margin: 0; padding: 0; list-style: none; }
+.findings li + li { margin-top: 4px; }
+.empty { color: var(--muted); padding: 24px 0; max-width: 60ch; }
+.more { margin-top: 12px; }
+.link-button { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-weight: 600; }
+
+/* ---------- severity and status words ---------- */
+.sev { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--ink-2); }
+.sev::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--rule-strong); }
+.sev[data-s="critical"]::before { background: var(--critical); }
+.sev[data-s="high"]::before { background: #e27a3f; }
+.sev[data-s="medium"]::before { background: var(--warning); }
+.state { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+.state::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--rule-strong); }
+.state[data-s="up"]::before, .state[data-s="allowed"]::before { background: var(--good); }
+.state[data-s="down"]::before, .state[data-s="quarantined"]::before { background: var(--critical); border-radius: 2px; }
+.state[data-s="denied"]::before { background: var(--ink-2); border-radius: 2px; }
+.state[data-s="ask"]::before { background: var(--accent); }
+.state[data-s="starting"]::before { background: var(--warning); }
+
+/* ---------- side column ---------- */
+.decisions { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-md); padding: 16px; }
+.decisions[data-waiting="true"] { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
+.decisions h2 { margin-bottom: 4px; }
+.request + .request { border-top: 1px solid var(--rule); margin-top: 14px; padding-top: 14px; }
+.request-tool { font-weight: 600; overflow-wrap: anywhere; }
+.request-meta { color: var(--muted); font-size: 12.5px; margin: 2px 0 8px; }
+.request pre {
+  margin: 0 0 12px; padding: 8px 10px; max-height: 160px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  font: 12px/1.45 var(--mono); background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-sm);
+}
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.grants-title { font-size: 13px; color: var(--muted); font-weight: 600; margin: 16px 0 4px; }
+.grant-list li { font-size: 13px; padding: 3px 0; color: var(--ink-2); }
+.btn { border: 1px solid var(--rule-strong); background: var(--surface); padding: 6px 12px; border-radius: var(--r-sm); cursor: pointer; font-weight: 600; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.list { list-style: none; margin: 0; padding: 0; }
+.server { padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.server:first-child { padding-top: 0; }
+.server-line { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.server-name { font-weight: 600; }
+.server-sub { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.inv-group + .inv-group { margin-top: 16px; }
+.inv-group h3 { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+td, th { padding: 5px 0; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: baseline; }
+th { color: var(--muted); font-weight: 500; }
+td + td, th + th { padding-left: 12px; }
+td.num, th.num { text-align: right; }
+.tool-name { overflow-wrap: anywhere; }
+.cond { display: block; color: var(--muted); font-size: 12px; }
+.banner {
+  margin: 0 0 20px; padding: 10px 14px; border-radius: var(--r-sm); font-size: 13.5px;
+  background: var(--warning-soft); color: var(--ink); border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+}
+.banner[data-tone="critical"] { background: var(--critical-soft); border-color: color-mix(in srgb, var(--critical) 45%, transparent); }
+
+/* ---------- view switch and threat coverage ---------- */
+.views { display: inline-flex; gap: 4px; margin-left: 20px; vertical-align: baseline; }
+.views button {
+  border: 0; background: none; padding: 4px 10px; border-radius: var(--r-sm); cursor: pointer; color: var(--ink-2);
+  font-size: 14px; font-weight: 600;
+}
+.views button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.brand-row { display: flex; align-items: baseline; flex-wrap: wrap; }
+[hidden] { display: none !important; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 28px; }
+.tile { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-md); padding: 12px 14px; }
+.tile b { display: block; font-size: 26px; font-weight: 650; line-height: 1.15; letter-spacing: -0.02em; }
+.tile span { color: var(--ink-2); font-size: 13px; }
+.tile[data-k="affected"][data-n]:not([data-n="0"]) { border-color: var(--critical); box-shadow: inset 4px 0 0 var(--critical); }
+.tile[data-k="gaps"][data-n]:not([data-n="0"]) { box-shadow: inset 4px 0 0 var(--warning); }
+.cov { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+.cov-row {
+  display: grid; grid-template-columns: 132px 70px minmax(0, 1fr) 84px; gap: 12px; align-items: baseline;
+  width: 100%; padding: 9px 4px 9px 0; text-align: left; border: 0; border-bottom: 1px solid var(--rule);
+  background: none; cursor: pointer;
+}
+.cov-row:hover { background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.cov-row .title { font-weight: 600; overflow-wrap: anywhere; }
+.cov-row .title small { display: block; font-weight: 400; color: var(--muted); font-size: 12.5px; }
+.cov-row time, .cov-row .kind { color: var(--muted); font-size: 13px; }
+.cov-body { padding: 10px 0 18px 144px; border-bottom: 1px solid var(--rule); font-size: 13.5px; max-width: 86ch; }
+.cov-body p { margin: 0 0 8px; }
+.cov-body h3 { font-size: 12.5px; color: var(--muted); font-weight: 600; margin: 12px 0 4px; }
+.cov-body ul { margin: 0; padding: 0; list-style: none; }
+.cov-body li { padding: 2px 0; }
+.cov-body code, .ctl code { font: 12px/1.4 var(--mono); background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+.cov-body a { color: var(--accent); overflow-wrap: anywhere; }
+.caveat { color: var(--ink-2); font-style: italic; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--ink-2); }
+.pill::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--rule-strong); }
+.pill[data-s="blocks"]::before, .pill[data-s="on"]::before { background: var(--good); }
+.pill[data-s="limits"]::before { background: var(--accent); }
+.pill[data-s="detects"]::before, .pill[data-s="manual"]::before { background: var(--accent); border-radius: 2px; }
+.pill[data-s="gaps"]::before, .pill[data-s="partial"]::before { background: var(--warning); border-radius: 2px; transform: rotate(45deg); }
+.pill[data-s="affected"]::before, .pill[data-s="off"]::before { background: var(--critical); border-radius: 2px; }
+.pill[data-s="affected"] { color: var(--critical); }
+.ctl { padding: 9px 0; border-bottom: 1px solid var(--rule); }
+.ctl:first-child { padding-top: 0; }
+.ctl-line { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.ctl-name { font-weight: 600; font-size: 13.5px; }
+.ctl-sub { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; margin-top: 2px; }
+@media (max-width: 640px) {
+  .cov-row { grid-template-columns: 1fr auto; }
+  .cov-row .title { grid-column: 1 / -1; grid-row: 2; }
+  .cov-row .kind { display: none; }
+  .cov-body { padding-left: 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rec-body { animation: open 140ms ease-out; }
+  @keyframes open { from { opacity: 0; transform: translateY(-3px); } }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand-row">
+    <h1 class="brand">mcp<span>guard</span></h1>
+    <nav class="views" aria-label="Views" id="views">
+      <button type="button" data-view="activity" aria-pressed="true">Activity</button>
+      <button type="button" data-view="coverage" aria-pressed="false">Threat coverage</button>
+    </nav>
+  </div>
+  <p class="summary" id="summary">Loading gateway status.</p>
+  <div class="right">
+    <div class="modeswitch" id="modeswitch" role="group" aria-label="Mode" title="Monitor records what would be blocked. Enforce blocks it.">
+      <button type="button" data-mode="monitor" aria-pressed="false">Monitor</button>
+      <button type="button" data-mode="enforce" aria-pressed="false">Enforce</button>
+    </div>
+    <div class="live" id="live" data-state="idle" aria-live="polite"><span class="live-dot"></span><span id="liveText">Connecting</span></div>
+  </div>
+</header>
+
+<main class="layout" id="view-coverage" hidden>
+  <div class="primary">
+    <div id="covBanners"></div>
+    <div class="tiles" id="tiles"></div>
+    <section aria-labelledby="cov-title">
+      <div class="section-head">
+        <h2 id="cov-title">Known MCP incidents and CVEs</h2>
+        <span class="section-note" id="covNote"></span>
+      </div>
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="Filter incidents" id="covFilters">
+          <button type="button" data-f="all" aria-pressed="true">All</button>
+          <button type="button" data-f="action" aria-pressed="false">Needs action</button>
+          <button type="button" data-f="campaign" aria-pressed="false">Campaigns</button>
+          <button type="button" data-f="cve" aria-pressed="false">CVEs</button>
+        </div>
+        <label class="visually-hidden" for="covSearch">Search incidents</label>
+        <input class="search" id="covSearch" type="search" placeholder="Search name, CVE or component" autocomplete="off">
+      </div>
+      <ol class="cov" id="covList" aria-label="Incidents, newest first"></ol>
+    </section>
+  </div>
+  <aside class="secondary">
+    <section aria-labelledby="ctl-title">
+      <div class="section-head"><h2 id="ctl-title">Protections in this setup</h2><span class="section-note" id="ctlNote"></span></div>
+      <ul class="list" id="controls"></ul>
+    </section>
+  </aside>
+</main>
+
+<main class="layout" id="view-activity">
+  <div class="primary">
+    <div id="banners"></div>
+
+    <section class="activity" aria-labelledby="activity-title">
+      <div class="section-head">
+        <h2 id="activity-title">Tool calls in the last hour</h2>
+        <ul class="legend" aria-label="Legend">
+          <li><span class="swatch" style="background:var(--good)"></span>Allowed</li>
+          <li><span class="swatch" style="background:var(--warning)"></span>Would block</li>
+          <li><span class="swatch" style="background:var(--critical)"></span>Blocked</li>
+        </ul>
+      </div>
+      <div class="chart" id="chart" role="img" aria-label="Tool calls per minute"></div>
+      <details class="table-view">
+        <summary>Show as table</summary>
+        <div id="chartTable"></div>
+      </details>
+    </section>
+
+    <section aria-labelledby="ledger-title">
+      <div class="section-head">
+        <h2 id="ledger-title">Audit ledger</h2>
+        <span class="integrity" id="integrity"></span>
+      </div>
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="Filter events" id="filters">
+          <button type="button" data-f="all" aria-pressed="true">All</button>
+          <button type="button" data-f="blocked" aria-pressed="false">Blocked</button>
+          <button type="button" data-f="allowed" aria-pressed="false">Allowed</button>
+          <button type="button" data-f="decisions" aria-pressed="false">Decisions</button>
+          <button type="button" data-f="findings" aria-pressed="false">With findings</button>
+          <button type="button" data-f="system" aria-pressed="false">Servers and config</button>
+        </div>
+        <label class="visually-hidden" for="search">Search events</label>
+        <input class="search" id="search" type="search" placeholder="Search tool, rule or reason" autocomplete="off">
+      </div>
+      <ol class="chain" id="events" aria-label="Audit records, newest first"></ol>
+      <div class="more" id="more"></div>
+    </section>
+  </div>
+
+  <aside class="secondary">
+    <section class="decisions" id="decisions" aria-labelledby="decisions-title">
+      <h2 id="decisions-title">Needs your decision</h2>
+      <div id="pending"></div>
+      <div id="grants"></div>
+    </section>
+
+    <section aria-labelledby="servers-title">
+      <div class="section-head"><h2 id="servers-title">Servers</h2><span class="section-note" id="serverNote"></span></div>
+      <ul class="list" id="servers"></ul>
+    </section>
+
+    <section aria-labelledby="tools-title">
+      <div class="section-head"><h2 id="tools-title">Tools</h2><span class="section-note" id="toolNote"></span></div>
+      <div id="inventory"></div>
+    </section>
+
+    <section aria-labelledby="rules-title">
+      <div class="section-head"><h2 id="rules-title">Findings by rule</h2></div>
+      <div id="rules"></div>
+    </section>
+  </aside>
+</main>
+
+<script>
+"use strict";
+const TOKEN = "__MCPGUARD_TOKEN__";
+const POLL_MS = 2000;
+const PAGE = 60;
+
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtTime = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const fmtClock = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const fmtNum = (n) => Number(n || 0).toLocaleString();
+const plural = (n, one, many) => `${fmtNum(n)} ${n === 1 ? one : many}`;
+function ago(ts, now) {
+  const s = Math.max(0, Math.round(now - ts));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  return `${Math.round(s / 3600)} h ago`;
+}
+
+/* Plain-language names for audit events. */
+const EVENTS = {
+  "call.allowed": ["Allowed", "allowed"],
+  "call.blocked": ["Blocked", "blocked"],
+  "call.would_block": ["Would block", "would_block"],
+  "call.failed": ["Call failed", "problem"],
+  "call.cancelled": ["Cancelled", "system"],
+  "call.upstream_error": ["Server error", "problem"],
+  "tool.quarantined": ["Quarantined", "blocked"],
+  "prompt.quarantined": ["Quarantined", "blocked"],
+  "resource.quarantined": ["Quarantined", "blocked"],
+  "tools.findings": ["Findings", "system"],
+  "prompts.findings": ["Findings", "system"],
+  "resources.findings": ["Findings", "system"],
+  "server.start": ["Server up", "system"],
+  "server.refused": ["Server refused", "blocked"],
+  "server.would_refuse": ["Would refuse", "would_block"],
+  "server.advisory": ["Advisory", "problem"],
+  "server.failed": ["Server down", "problem"],
+  "server.exited": ["Server exited", "problem"],
+  "config.reloaded": ["Config applied", "system"],
+  "config.reload_failed": ["Config rejected", "problem"],
+  "upstream.list_changed": ["Catalog changed", "system"],
+  "audit.recovered": ["Log recovered", "problem"],
+  "gateway.error": ["Gateway error", "problem"],
+  "resource.collision": ["Name clash", "problem"],
+};
+function describe(e) {
+  if (e.event === "call.approval") return [e.approved ? "Approved" : "Declined", "decision"];
+  return EVENTS[e.event] || [e.event, "system"];
+}
+function detailOf(e) {
+  if (e.reason) return e.reason;
+  if (e.error) return e.error;
+  if (e.findings && e.findings.length) {
+    const msg = e.findings.map((f) => f.message).join("; ");
+    return e.event === "call.allowed" ? `Passed after redaction: ${msg}` : msg;
+  }
+  if (e.event === "call.allowed") return typeof e.latency_ms === "number" ? `${e.latency_ms} ms` : "";
+  if (e.event === "call.approval" && e.remember_until) return `No further prompts until ${fmtClock(e.remember_until)}`;
+  if (e.event === "call.cancelled") return e.forwarded ? "Cancellation passed to the server" : "Cancelled before reaching the server";
+  if (e.event === "config.reloaded") {
+    const parts = [];
+    if (e.servers_added?.length) parts.push(`added ${e.servers_added.join(", ")}`);
+    if (e.servers_removed?.length) parts.push(`removed ${e.servers_removed.join(", ")}`);
+    return parts.join("; ") || `mode ${e.mode}`;
+  }
+  return "";
+}
+
+const ui = { filter: "all", query: "", open: new Set(), shown: PAGE, state: null, sig: "" };
+
+/* ---------- summary and banners ---------- */
+function renderSummary(s) {
+  const g = s.gateway;
+  const servers = s.servers || [];
+  const enabled = servers.filter((x) => x.status !== "disabled");
+  const up = enabled.filter((x) => x.status === "up").length;
+  const blockedHour = s.timeline.reduce((a, m) => a + m.blocked, 0);
+  let text;
+  if (!g.running) {
+    text = "The gateway is not running. Showing the saved audit log.";
+  } else {
+    const verb = g.mode === "monitor" ? "Monitoring" : "Enforcing policy on";
+    const health = enabled.length === 0 ? "no servers configured"
+      : up === enabled.length ? `${plural(enabled.length, "server", "servers")}, all up`
+      : `${up} of ${enabled.length} servers up`;
+    text = `${verb} ${health}.`;
+    // Claude Desktop can start the gateway more than once; they share the log, policy and approvals.
+    if ((g.processes || 1) > 1) text += ` ${g.processes} gateway processes share this config.`;
+    if (g.mode === "monitor") text += " Nothing is blocked in monitor mode.";
+    text += blockedHour ? ` ${plural(blockedHour, "call", "calls")} blocked in the last hour.` : " Nothing blocked in the last hour.";
+  }
+  $("summary").textContent = text;
+  renderModeSwitch(g);
+
+  const banners = [];
+  if (!s.integrity.ok) {
+    const m = s.integrity.message;
+    const next = m.includes("audit-new") ? "" :
+      " Records after that point cannot be trusted. Run `mcpguard verify` for details, or `mcpguard audit-new` to keep this log aside and start a fresh one.";
+    banners.push(["critical", `The audit log failed verification: ${m}.${next}`]);
+  }
+  if (g.running && g.mode === "monitor") banners.push(["warning", "Monitor mode: mcpguard records what it would block but lets every call through. Use the switch at the top right to enforce once the findings look right."]);
+  $("banners").innerHTML = banners.map(([tone, t]) => `<p class="banner" data-tone="${tone}">${esc(t)}</p>`).join("");
+}
+
+/* ---------- monitor / enforce switch ---------- */
+function renderModeSwitch(g) {
+  const box = $("modeswitch");
+  box.hidden = false;  // also shown when no gateway runs: the choice is kept for the next start
+  box.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === (g.wanted_mode || g.mode))));
+  // A choice has been saved but the gateway has not applied it yet (it checks every couple of seconds).
+  box.dataset.state = g.wanted_mode && g.wanted_mode !== g.mode ? "waiting" : "";
+  box.title = g.mode_source && g.mode_source !== "config"
+    ? `Set from ${g.mode_source}. The config file says ${g.config_mode}.`
+    : box.dataset.state === "waiting" ? "Saved. It takes effect when a gateway is running (Claude Desktop open) and picks it up, within a couple of seconds."
+    : "Monitor records what would be blocked. Enforce blocks it.";
+}
+$("modeswitch").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button[data-mode]");
+  if (!b || b.getAttribute("aria-pressed") === "true") return;
+  if (b.dataset.mode === "monitor" &&
+      !confirm("Switch to Monitor? mcpguard will record what it would block but let every call through.")) return;
+  const buttons = $("modeswitch").querySelectorAll("button");
+  buttons.forEach((x) => (x.disabled = true));
+  try {
+    const r = await fetch("/api/mode", {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Token": TOKEN },
+      body: JSON.stringify({ mode: b.dataset.mode }),
+    });
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+  } catch (err) {
+    $("summary").textContent = `Could not switch the mode: ${err.message}`;
+  }
+  buttons.forEach((x) => (x.disabled = false));
+  refresh();
+});
+
+/* ---------- activity chart ---------- */
+const SERIES = [["allowed", "Allowed", "var(--good)"], ["would_block", "Would block", "var(--warning)"], ["blocked", "Blocked", "var(--critical)"]];
+
+function niceMax(v) {
+  if (v <= 4) return 4;
+  const p = 10 ** Math.floor(Math.log10(v));
+  for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p;
+  return 10 * p;
+}
+
+function renderChart(timeline) {
+  const box = $("chart");
+  const W = Math.max(320, box.clientWidth), H = box.clientHeight || 140;
+  const padL = 34, padB = 20, padT = 6;
+  const plotW = W - padL, plotH = H - padB - padT;
+  const totals = timeline.map((m) => m.allowed + m.blocked + m.would_block);
+  const max = niceMax(Math.max(...totals, 1));
+  const slot = plotW / timeline.length;
+  const bw = Math.min(24, Math.max(3, slot - 3));
+  const y = (v) => padT + plotH - (v / max) * plotH;
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">`;
+  for (const t of [0, max / 2, max]) {
+    svg += `<line x1="${padL}" x2="${W}" y1="${y(t)}" y2="${y(t)}" stroke="var(--grid)" stroke-width="1"/>`;
+    svg += `<text class="axis-text" x="${padL - 8}" y="${y(t) + 4}" text-anchor="end">${fmtNum(t)}</text>`;
+  }
+  timeline.forEach((m, i) => {
+    const x = padL + i * slot + (slot - bw) / 2;
+    let base = 0;
+    const parts = SERIES.filter(([k]) => m[k] > 0);
+    parts.forEach(([k, , color], j) => {
+      const top = base + m[k];
+      const y0 = y(base), y1 = y(top);
+      const gap = j > 0 ? 2 : 0;
+      const h = Math.max(1, y0 - y1 - gap);
+      const yTop = y1;
+      const r = j === parts.length - 1 ? Math.min(4, bw / 2, h) : 0;
+      svg += r
+        ? `<path fill="${color}" d="M${x},${yTop + h} V${yTop + r} Q${x},${yTop} ${x + r},${yTop} H${x + bw - r} Q${x + bw},${yTop} ${x + bw},${yTop + r} V${yTop + h} Z"/>`
+        : `<rect fill="${color}" x="${x}" y="${yTop}" width="${bw}" height="${h}"/>`;
+      base = top;
+    });
+    svg += `<rect class="hit" data-i="${i}" x="${padL + i * slot}" y="${padT}" width="${slot}" height="${plotH}" fill="transparent"/>`;
+  });
+  const first = timeline[0].minute, last = timeline[timeline.length - 1].minute;
+  svg += `<text class="axis-text" x="${padL}" y="${H - 4}">${fmtClock(first)}</text>`;
+  svg += `<text class="axis-text" x="${padL + plotW / 2}" y="${H - 4}" text-anchor="middle">${fmtClock((first + last) / 2)}</text>`;
+  svg += `<text class="axis-text" x="${W}" y="${H - 4}" text-anchor="end">now</text></svg>`;
+  box.innerHTML = svg + `<div class="tooltip" id="tip" hidden></div>`;
+
+  const total = totals.reduce((a, b) => a + b, 0);
+  box.setAttribute("aria-label", `Tool calls per minute over the last hour: ${fmtNum(total)} in total.`);
+
+  const tip = $("tip");
+  box.querySelectorAll(".hit").forEach((el) => {
+    const show = () => {
+      const m = timeline[+el.dataset.i];
+      tip.innerHTML = `<time>${fmtClock(m.minute)}</time>` + SERIES.map(([k, label, color]) =>
+        `<div><span class="swatch" style="background:${color}"></span>${label}<b>${fmtNum(m[k])}</b></div>`).join("");
+      tip.hidden = false;
+      const bx = +el.getAttribute("x") + slot / 2;
+      tip.style.left = `${Math.min(Math.max(bx - 75, 0), W - 160)}px`;
+      tip.style.top = `-8px`;
+      el.setAttribute("fill", "color-mix(in srgb, var(--ink) 6%, transparent)");
+    };
+    const hide = () => { tip.hidden = true; el.setAttribute("fill", "transparent"); };
+    el.addEventListener("mouseenter", show);
+    el.addEventListener("mouseleave", hide);
+  });
+
+  const rows = timeline.filter((m) => m.allowed + m.blocked + m.would_block > 0);
+  $("chartTable").innerHTML = rows.length
+    ? `<table><thead><tr><th>Minute</th><th class="num">Allowed</th><th class="num">Would block</th><th class="num">Blocked</th></tr></thead><tbody>` +
+      rows.map((m) => `<tr><td>${fmtClock(m.minute)}</td><td class="num">${m.allowed}</td><td class="num">${m.would_block}</td><td class="num">${m.blocked}</td></tr>`).join("") +
+      `</tbody></table>`
+    : `<p>No tool calls in the last hour.</p>`;
+}
+
+/* ---------- ledger ---------- */
+function matchesFilter(e) {
+  const kind = describe(e)[1];
+  switch (ui.filter) {
+    case "blocked": return kind === "blocked" || kind === "would_block";
+    case "allowed": return kind === "allowed";
+    case "decisions": return e.event === "call.approval" || e.event === "call.cancelled";
+    case "findings": return (e.findings || []).length > 0;
+    case "system": return kind === "system" || kind === "problem";
+    default: return true;
+  }
+}
+function matchesQuery(e) {
+  if (!ui.query) return true;
+  const hay = [e.event, e.tool, e.server, e.client, e.reason, e.error, ...(e.findings || []).flatMap((f) => [f.rule, f.message])]
+    .join(" ").toLowerCase();
+  return hay.includes(ui.query);
+}
+
+function recordBody(e) {
+  const rows = [];
+  if (e.tool) rows.push(["Target", esc(e.tool)]);
+  if (e.client) rows.push(["Client", e.client === "stdio" ? "Local client (stdio)" : esc(e.client)]);
+  if (e.remember_until) rows.push(["Allowed until", fmtTime(e.remember_until)]);
+  if (e.server) rows.push(["Server", esc(e.server)]);
+  if (e.reason) rows.push(["Reason", esc(e.reason)]);
+  if (e.error) rows.push(["Error", esc(e.error)]);
+  if (e.direction === "result") rows.push(["Stage", "Checked on the way back from the server"]);
+  if (typeof e.latency_ms === "number") rows.push(["Latency", `${e.latency_ms} ms`]);
+  if (e.findings?.length) rows.push(["Findings", `<ul class="findings">${e.findings.map((f) =>
+    `<li><span class="sev" data-s="${esc(f.severity)}">${esc(f.severity)}</span> ${esc(f.rule)}: ${esc(f.message)}${f.where ? ` <span class="section-note">at ${esc(f.where)}</span>` : ""}</li>`).join("")}</ul>`]);
+  if (e.args_hash) rows.push(["Arguments", `<span class="hash">sha256 ${esc(e.args_hash)}</span> <span class="section-note">(contents are not logged)</span>`]);
+  rows.push(["Record", `<span class="hash">#${e.seq} ${esc(e.hash)}</span>${e.alg ? ` <span class="section-note">signed</span>` : ""}`]);
+  rows.push(["Links to", `<span class="hash">${esc(e.prev)}</span>`]);
+  return `<dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`;
+}
+
+function renderLedger(s) {
+  const list = s.events.filter((e) => matchesFilter(e) && matchesQuery(e));
+  const shown = list.slice(0, ui.shown);
+  const el = $("events");
+  el.dataset.broken = String(!s.integrity.ok);
+  if (!s.events.length) {
+    el.innerHTML = "";
+    $("more").innerHTML = `<p class="empty">No activity recorded yet. Point your MCP client at <code>mcpguard run</code> and each call will appear here as it happens.</p>`;
+    return;
+  }
+  if (!shown.length) {
+    el.innerHTML = "";
+    $("more").innerHTML = `<p class="empty">No events match this filter.</p>`;
+    return;
+  }
+  el.innerHTML = shown.map((e) => {
+    const [label, kind] = describe(e);
+    const open = ui.open.has(e.seq);
+    return `<li class="rec" data-kind="${kind}">
+      <button type="button" class="rec-row" data-seq="${e.seq}" aria-expanded="${open}">
+        <span class="node" aria-hidden="true"></span>
+        <time datetime="${new Date(e.ts * 1000).toISOString()}">${fmtTime(e.ts)}</time>
+        <span class="what">${esc(label)}</span>
+        <span class="target">${esc(e.tool || e.server || "")}${e.client && e.client !== "stdio" ? ` <span class="section-note">${esc(e.client)}</span>` : ""}</span>
+        <span class="detail">${esc(detailOf(e))}</span>
+      </button>
+      ${open ? `<div class="rec-body">${recordBody(e)}</div>` : ""}
+    </li>`;
+  }).join("");
+  $("more").innerHTML = list.length > shown.length
+    ? `<button type="button" class="link-button" id="showMore">Show ${Math.min(PAGE, list.length - shown.length)} older</button>`
+    : (s.events.length >= 300 ? `<p class="section-note">The dashboard keeps the latest 300 records. Use <code>mcpguard report</code> for the full history.</p>` : "");
+  const more = $("showMore");
+  if (more) more.onclick = () => { ui.shown += PAGE; renderLedger(ui.state); };
+}
+
+$("events").addEventListener("click", (ev) => {
+  const row = ev.target.closest(".rec-row");
+  if (!row) return;
+  const seq = +row.dataset.seq;
+  ui.open.has(seq) ? ui.open.delete(seq) : ui.open.add(seq);
+  renderLedger(ui.state);
+});
+$("filters").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-f]");
+  if (!b) return;
+  ui.filter = b.dataset.f;
+  ui.shown = PAGE;
+  $("filters").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  if (ui.state) renderLedger(ui.state);
+});
+$("search").addEventListener("input", (ev) => {
+  ui.query = ev.target.value.trim().toLowerCase();
+  ui.shown = PAGE;
+  if (ui.state) renderLedger(ui.state);
+});
+
+/* ---------- approvals ---------- */
+function renderPending(s) {
+  const box = $("decisions");
+  box.dataset.waiting = String(s.pending.length > 0);
+  const grants = (s.grants || []).map((g) => {
+    const mins = Math.max(1, Math.round((g.until - s.now) / 60));
+    const who = g.client === "stdio" ? "" : ` for ${esc(g.client)}`;
+    const target = g.target.includes(":") ? g.target : g.target.replace("/", "__");
+    return `<li><span class="tool-name">${esc(target)}</span>${who}, ${mins} min left</li>`;
+  }).join("");
+  $("grants").innerHTML = grants ? `<h3 class="grants-title">Allowed without asking</h3><ul class="list grant-list">${grants}</ul>` : "";
+  if (!s.pending.length) {
+    $("pending").innerHTML = `<p class="section-note">Nothing is waiting. Calls that match an "ask" rule appear here for you to allow or deny.</p>`;
+    return;
+  }
+  $("pending").innerHTML = s.pending.map((p) => {
+    const left = Math.max(0, Math.round(p.expires - s.now));
+    const mm = Math.floor(left / 60), ss = String(left % 60).padStart(2, "0");
+    return `<div class="request">
+      <div class="request-tool">${esc(p.tool)}</div>
+      <div class="request-meta">Matched ${esc(p.reason || "an ask rule")}. Denied automatically in ${mm}:${ss}.</div>
+      <pre>${esc(JSON.stringify(p.args, null, 2))}</pre>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" data-id="${esc(p.id)}" data-ok="true">Allow once</button>
+        ${s.remember_minutes ? `<button type="button" class="btn" data-id="${esc(p.id)}" data-ok="true" data-remember="${s.remember_minutes}">Allow for ${s.remember_minutes} min</button>` : ""}
+        <button type="button" class="btn" data-id="${esc(p.id)}" data-ok="false">Deny</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+$("pending").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button[data-id]");
+  if (!b) return;
+  b.closest(".actions").querySelectorAll("button").forEach((x) => (x.disabled = true));
+  try {
+    const r = await fetch("/api/decide", {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Token": TOKEN },
+      body: JSON.stringify({ id: b.dataset.id, approved: b.dataset.ok === "true", remember_minutes: +(b.dataset.remember || 0) }),
+    });
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+  } catch (err) {
+    b.closest(".request").querySelector(".request-meta").textContent = `Could not send your decision: ${err.message}`;
+  }
+  refresh();
+});
+
+/* ---------- servers, tools, findings ---------- */
+const STATUS_WORDS = { up: "Up", down: "Down", starting: "Starting", disabled: "Disabled" };
+function renderServers(s) {
+  const servers = s.servers || [];
+  $("serverNote").textContent = s.gateway.running ? "" : "last known state";
+  $("servers").innerHTML = servers.length ? servers.map((x) => `<li class="server">
+      <div class="server-line"><span class="server-name">${esc(x.name)}</span><span class="state" data-s="${esc(x.status)}">${STATUS_WORDS[x.status] || esc(x.status)}</span></div>
+      <div class="server-sub">${esc(x.kind === "http" ? "Remote" : "Local")}${x.restarts ? `, restarted ${plural(x.restarts, "time", "times")}` : ""}, since ${fmtClock(x.since)}</div>
+      ${x.last_error ? `<div class="server-sub">${esc(x.last_error)}</div>` : ""}
+    </li>`).join("")
+    : `<li class="section-note">No servers yet. Add a [servers.name] section to the config; the gateway picks it up without a restart.</li>`;
+}
+
+const INV_WORDS = { allowed: "Allowed", ask: "Asks first", denied: "Hidden", quarantined: "Quarantined" };
+function renderInventory(s) {
+  const inv = s.inventory || [];
+  const groups = {};
+  inv.forEach((t) => (groups[t.server] ||= []).push(t));
+  const q = inv.filter((t) => t.status === "quarantined").length;
+  $("toolNote").textContent = inv.length ? `${fmtNum(inv.length)} total${q ? `, ${q} quarantined` : ""}` : "";
+  $("inventory").innerHTML = inv.length ? Object.entries(groups).map(([server, tools]) => `<div class="inv-group">
+      <h3>${esc(server)}</h3>
+      <table><tbody>${tools.map((t) => `<tr>
+        <td class="tool-name">${esc(t.name)}${t.conditional ? `<span class="cond">Some calls blocked by argument rules</span>` : ""}${t.status === "quarantined" ? `<span class="cond">${esc(t.reason)}</span>` : ""}</td>
+        <td class="num"><span class="state" data-s="${esc(t.status)}">${INV_WORDS[t.status] || esc(t.status)}</span></td>
+      </tr>`).join("")}</tbody></table></div>`).join("")
+    : `<p class="section-note">Tools appear once the gateway has connected to a server.</p>`;
+}
+
+function renderRules(s) {
+  const rows = Object.entries(s.rules).sort((a, b) => b[1].count - a[1].count);
+  $("rules").innerHTML = rows.length
+    ? `<table><thead><tr><th>Rule</th><th>Worst</th><th class="num">Count</th></tr></thead><tbody>${rows.map(([r, v]) =>
+      `<tr><td class="tool-name">${esc(r)}</td><td><span class="sev" data-s="${esc(v.severity)}">${esc(v.severity)}</span></td><td class="num">${fmtNum(v.count)}</td></tr>`).join("")}</tbody></table>`
+    : `<p class="section-note">No detector has fired yet.</p>`;
+}
+
+function renderIntegrity(s) {
+  const el = $("integrity");
+  el.dataset.ok = String(s.integrity.ok);
+  const signed = s.integrity.message.includes("signatures valid");
+  el.textContent = s.integrity.ok
+    ? `${signed ? "Chain and signatures verified" : "Chain verified"}, ${plural(s.integrity.records, "record", "records")}`
+    : "Chain broken";
+  el.title = s.integrity.message;
+}
+
+
+/* ---------- threat coverage view ---------- */
+const COV_WORDS = { blocks: "Stops it", limits: "Limits damage", detects: "Warns you", gaps: "Needs a setting",
+                    affected: "Affects you", outside: "Outside scope" };
+const CTL_WORDS = { on: "On", partial: "Partly", off: "Off", manual: "On demand", na: "Not needed" };
+const KIND_WORDS = { campaign: "Campaign", cve: "CVE", design: "Design flaw", research: "Research" };
+const cov = { data: null, filter: "all", query: "", open: new Set(), view: "activity" };
+const safeUrl = (u) => (/^https:\/\//.test(u) ? u : "");
+
+function renderCoverage() {
+  const d = cov.data;
+  if (!d) return;
+  const c = d.counts;
+  const tiles = [["affected", "match one of your servers"], ["gaps", "need a setting turned on"], ["blocks", "stopped"],
+                 ["limits", "damage limited"], ["detects", "you are warned"], ["outside", "outside a gateway's reach"]];
+  $("tiles").innerHTML = tiles.map(([k, label]) =>
+    `<div class="tile" data-k="${k}" data-n="${c[k]}"><b>${fmtNum(c[k])}</b><span>${esc(label)}</span></div>`).join("");
+  const banners = [];
+  if (d.matches.length) banners.push(`<p class="banner" data-tone="critical">${plural(d.matches.length, "configured server matches", "configured servers match")} a known campaign or CVE: ${d.matches.map((m) => `<b>${esc(m.server)}</b> (${esc(m.message)})`).join("; ")}</p>`);
+  if (d.mode === "monitor") banners.push(`<p class="banner">Monitor mode: mcpguard records what it would stop but lets everything through. The statuses below describe enforce mode.</p>`);
+  $("covBanners").innerHTML = banners.join("");
+  const q = cov.query.toLowerCase();
+  const rows = d.advisories
+    .filter((r) => cov.filter === "all" || (cov.filter === "action" ? ["gaps", "affected"].includes(r.status) : r.kind === cov.filter))
+    .filter((r) => !q || `${r.id} ${r.title} ${r.component} ${r.summary}`.toLowerCase().includes(q))
+    .sort((a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : 0));
+  $("covNote").textContent = `${plural(rows.length, "entry", "entries")} of ${d.total}, each with its sources`;
+  $("covList").innerHTML = rows.length ? rows.map((r) => {
+    const open = cov.open.has(r.id);
+    const need = r.controls.filter((x) => x.state === "off" || x.state === "partial");
+    const body = !open ? "" : `<div class="cov-body">
+        <p>${esc(r.summary)}</p>
+        <h3>What mcpguard does</h3><p>${esc(r.response)}</p>
+        ${r.matches.length ? `<h3>Your servers</h3><ul>${r.matches.map((m) => `<li><b>${esc(m.server)}</b>: ${esc(m.message)}</li>`).join("")}</ul>` : ""}
+        ${need.length ? `<h3>Turn on</h3><ul>${need.map((x) => `<li>${esc(x.label)} (${esc(x.detail)}) <code>${esc(x.how)}</code></li>`).join("")}</ul>` : ""}
+        ${r.controls.length ? `<h3>Protections involved</h3><ul>${r.controls.map((x) => `<li><span class="pill" data-s="${esc(x.state)}">${CTL_WORDS[x.state] || esc(x.state)}</span> ${esc(x.label)}</li>`).join("")}</ul>` : ""}
+        ${r.caveat ? `<p class="caveat">${esc(r.caveat)}</p>` : ""}
+        ${r.sources.length ? `<h3>Sources</h3><ul>${r.sources.map((u) => safeUrl(u) ? `<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u.replace(/^https:\/\//, "").slice(0, 90))}</a></li>` : "").join("")}</ul>` : ""}
+      </div>`;
+    return `<li><button type="button" class="cov-row" data-id="${esc(r.id)}" aria-expanded="${open}">
+        <span class="pill" data-s="${esc(r.status)}">${COV_WORDS[r.status] || esc(r.status)}</span>
+        <time>${esc(r.date)}</time>
+        <span class="title">${esc(r.title)}<small>${esc(r.component)}</small></span>
+        <span class="kind">${KIND_WORDS[r.kind] || esc(r.kind)}</span>
+      </button>${body}</li>`;
+  }).join("") : `<li class="empty">Nothing matches this filter.</li>`;
+  const on = d.controls.filter((x) => x.state === "on").length;
+  $("ctlNote").textContent = `${on} of ${d.controls.length} on`;
+  const order = { off: 0, partial: 1, manual: 2, na: 3, on: 4 };
+  $("controls").innerHTML = d.controls.slice().sort((a, b) => order[a.state] - order[b.state]).map((x) => `<li class="ctl">
+      <div class="ctl-line"><span class="ctl-name">${esc(x.label)}</span><span class="pill" data-s="${esc(x.state)}">${CTL_WORDS[x.state] || esc(x.state)}</span></div>
+      <div class="ctl-sub">${esc(x.detail)}${x.how && x.state !== "on" && x.state !== "na" ? ` &middot; <code>${esc(x.how)}</code>` : ""}</div>
+    </li>`).join("");
+}
+
+async function refreshCoverage() {
+  try {
+    const r = await fetch("/api/coverage", { cache: "no-store" });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.statusText);
+    cov.data = d;
+    renderCoverage();
+  } catch (err) {
+    $("covBanners").innerHTML = `<p class="banner" data-tone="critical">Coverage could not be worked out: ${esc(err.message)}</p>`;
+  }
+}
+
+$("views").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-view]");
+  if (!b) return;
+  cov.view = b.dataset.view;
+  document.querySelectorAll("#views button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  $("view-activity").hidden = cov.view !== "activity";
+  $("view-coverage").hidden = cov.view !== "coverage";
+  if (cov.view === "coverage") refreshCoverage();
+});
+$("covFilters").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-f]");
+  if (!b) return;
+  cov.filter = b.dataset.f;
+  document.querySelectorAll("#covFilters button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  renderCoverage();
+});
+$("covSearch").addEventListener("input", (e) => { cov.query = e.target.value; renderCoverage(); });
+$("covList").addEventListener("click", (e) => {
+  const b = e.target.closest(".cov-row");
+  if (!b) return;
+  cov.open.has(b.dataset.id) ? cov.open.delete(b.dataset.id) : cov.open.add(b.dataset.id);
+  renderCoverage();
+});
+setInterval(() => cov.view === "coverage" && refreshCoverage(), 15000);
+if (location.hash === "#coverage") document.querySelector('#views button[data-view="coverage"]').click();
+
+/* ---------- polling ---------- */
+function setLive(state, text) {
+  $("live").dataset.state = state;
+  $("liveText").textContent = text;
+}
+
+async function refresh() {
+  try {
+    const r = await fetch("/api/state", { cache: "no-store" });
+    const s = await r.json();
+    if (!r.ok) throw new Error(s.error || r.statusText);
+    ui.state = s;
+    renderSummary(s);
+    renderChart(s.timeline);
+    renderIntegrity(s);
+    renderPending(s);
+    renderServers(s);
+    renderInventory(s);
+    renderRules(s);
+    const sig = `${s.events[0]?.seq}|${s.integrity.ok}`;
+    if (sig !== ui.sig) { ui.sig = sig; renderLedger(s); }
+    setLive(s.gateway.running ? "live" : "idle", s.gateway.running ? `Live, updated ${fmtClock(s.now)}` : `Gateway stopped${s.gateway.updated_at ? ` ${ago(s.gateway.updated_at, s.now)}` : ""}`);
+  } catch (err) {
+    setLive("error", "Dashboard cannot reach the gateway files");
+  }
+}
+
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => ui.state && renderChart(ui.state.timeline), 120);
+});
+refresh();
+setInterval(refresh, POLL_MS);
+</script>
+</body>
+</html>
