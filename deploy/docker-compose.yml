@@ -1,0 +1,15 @@
+# Shared mcpguard gateway. Put mcpguard.toml in ./data first (mcpguard -c data/mcpguard.toml init),
+# with at least one [clients.<name>] section; give the tokens in a .env file next to this one.
+services:
+  mcpguard:
+    build: ..
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8766:8766"   # put a TLS-terminating proxy in front before exposing this further
+    volumes:
+      - ./data:/data
+    env_file: .env               # MCPGUARD_TOKEN_<CLIENT>=..., MCPGUARD_WEBHOOK=...
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]

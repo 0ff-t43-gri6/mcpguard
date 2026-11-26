@@ -1,0 +1,39 @@
+# systemd unit for a shared mcpguard gateway.
+#   sudo useradd --system --home /var/lib/mcpguard --create-home mcpguard
+#   sudo -u mcpguard python3 -m venv /var/lib/mcpguard/venv
+#   sudo -u mcpguard /var/lib/mcpguard/venv/bin/pip install mcpguard-<version>-py3-none-any.whl
+#   sudo -u mcpguard /var/lib/mcpguard/venv/bin/mcpguard -c /var/lib/mcpguard/mcpguard.toml init
+#   sudo cp mcpguard.service /etc/systemd/system/ && sudo systemctl enable --now mcpguard
+# Tokens and the webhook URL go in /etc/mcpguard/env (mode 0600), one NAME=value per line.
+[Unit]
+Description=mcpguard MCP security gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=mcpguard
+WorkingDirectory=/var/lib/mcpguard
+EnvironmentFile=-/etc/mcpguard/env
+ExecStartPre=/var/lib/mcpguard/venv/bin/mcpguard -c /var/lib/mcpguard/mcpguard.toml selftest
+ExecStart=/var/lib/mcpguard/venv/bin/mcpguard -c /var/lib/mcpguard/mcpguard.toml serve
+Restart=on-failure
+RestartSec=3
+# SIGTERM saves state and stops tool servers cleanly.
+TimeoutStopSec=20
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/mcpguard
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
