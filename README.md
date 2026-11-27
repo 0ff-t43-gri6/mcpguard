@@ -131,4 +131,4 @@ For a security issue, follow [SECURITY.md](SECURITY.md) and do not open a public
 
 ## License
 
-See [LICENSE](LICENSE).
+MIT License. See [LICENSE](LICENSE).

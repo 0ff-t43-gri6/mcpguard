@@ -6,7 +6,7 @@
 # uv, ...) in an image built FROM this one, or use remote (HTTP) servers.
 FROM python:3.13-slim AS build
 WORKDIR /src
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 RUN pip wheel --no-cache-dir --no-deps -w /wheels .
 

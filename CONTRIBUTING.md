@@ -19,3 +19,5 @@ and macOS.
 - **The classifier is never tuned on its test split.** See `docs/model.md`.
 
 `docs/architecture.md` has the map of the code.
+
+By submitting a change you agree it is licensed under the MIT License, the same as the project.
