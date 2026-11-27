@@ -29,7 +29,7 @@ def local_or_https(url: str) -> bool:
     # Older Python 3.11 releases accept "http://[::1].evil.com/" and report the host as "::1". Brackets are
     # only valid around the whole host, so refuse any other placement here instead of relying on the parser.
     netloc = parts.netloc
-    if ("[" in netloc or "]" in netloc) and not re.fullmatch(r"\[[0-9A-Fa-f:.%\w]+\](:\d*)?", netloc):
+    if ("[" in netloc or "]" in netloc) and not re.fullmatch(r"\[[\w:.%]+\](:\d*)?", netloc):
         return False
     if not host or parts.username is not None:
         return False

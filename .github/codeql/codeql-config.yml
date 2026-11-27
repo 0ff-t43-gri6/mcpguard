@@ -1,0 +1,5 @@
+name: mcpguard CodeQL config
+# Test files contain deliberately odd inputs (hostile URLs, HTML pulled apart by regex) that CodeQL
+# reports as problems; they never ship in the package.
+paths-ignore:
+  - tests

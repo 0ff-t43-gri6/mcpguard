@@ -185,7 +185,9 @@ def list_pending(directory: str | Path) -> list[dict]:
 
 
 def decide(directory: str | Path, rid: str, approved: bool, remember_minutes: int = 0) -> bool:
-    if not rid.isalnum() or not (Path(directory) / "pending" / f"{rid}.json").exists():
+    if not (rid.isascii() and rid.isalnum() and len(rid) <= 64):
+        return False
+    if not (Path(directory) / "pending" / f"{rid}.json").exists():
         return False
     decided = Path(directory) / "decided"
     decided.mkdir(parents=True, exist_ok=True)
