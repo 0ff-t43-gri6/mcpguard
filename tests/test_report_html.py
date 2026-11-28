@@ -58,3 +58,16 @@ def test_selftest_runs_with_an_untrusted_config_in_the_folder(tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)
     assert main(["selftest"]) == 0
     assert "not trusted yet" in capsys.readouterr().out
+
+
+def test_report_checks_signatures_when_it_has_the_key(tmp_path):
+    from mcpguard.audit import AuditLog
+
+    key = b"k" * 32
+    path = str(tmp_path / "audit.jsonl")
+    AuditLog(path, key=key).write("call.blocked", tool="web/fetch", reason="host not allowed", findings=[])
+    with_key = build_report(path, key=key)
+    without_key = build_report(path)
+    assert "signatures valid" in with_key
+    assert "not checked" in without_key
+    assert "signatures valid" in build_report_html(path, key=key)

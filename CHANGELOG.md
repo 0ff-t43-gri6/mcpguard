@@ -13,6 +13,8 @@ never published; the numbers are kept as history.
 - Fixed: on Windows two audit-log rotations in quick succession could get the same segment name, so the
   second overwrote the first and its records were lost (`mcpguard verify` then failed). New segments now
   always sort after the existing ones.
+- Fixed: `mcpguard report` never checked record signatures, so its integrity line always said they were not
+  checked. It now uses the signing key, as `mcpguard verify` does.
 - Fixed: some Python 3.11 releases read `http://[::1].evil.com/` as the local machine. Brackets are now only
   accepted around the whole host.
 - Fixed: on Python 3.11 a tool definition nested thousands of levels deep crashed pinning. It is now hashed

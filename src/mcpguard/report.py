@@ -28,9 +28,9 @@ def _table(header: list[str], rows: list[list]) -> list[str]:
     return out
 
 
-def build_report(audit_path: str, limit: int = 200) -> str:
+def build_report(audit_path: str, limit: int = 200, key: bytes | None = None) -> str:
     records = read_log(audit_path)
-    ok, msg = verify(audit_path)
+    ok, msg = verify(audit_path, key)
     by_event: dict[str, list[dict]] = {}
     for r in records:
         by_event.setdefault(r["event"], []).append(r)
@@ -162,9 +162,9 @@ def _split_row(line: str) -> list[str]:
     return cells
 
 
-def build_report_html(audit_path: str, limit: int = 200) -> str:
+def build_report_html(audit_path: str, limit: int = 200, key: bytes | None = None) -> str:
     """The same report as build_report, as one HTML file with its own style and no external requests."""
-    lines = build_report(audit_path, limit).split("\n")
+    lines = build_report(audit_path, limit, key).split("\n")
     body: list[str] = []
     i = 0
     while i < len(lines):

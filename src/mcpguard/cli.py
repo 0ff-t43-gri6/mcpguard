@@ -812,16 +812,17 @@ def cmd_stats(a) -> int:
 
 def cmd_report(a) -> int:
     cfg = _cfg(a)
+    key = load_key(cfg.audit_key_file) if cfg.audit_sign else None
     name = str(a.out).lower() if a.out else ""
     fmt = a.format or ("html" if name.endswith((".html", ".htm")) else "pdf" if name.endswith(".pdf") else "md")
     if fmt == "pdf":
         if not a.out:
             raise CliError("a PDF is a binary file: give a name, for example  -o report.pdf")
         from .pdf import markdown_to_pdf
-        Path(a.out).write_bytes(markdown_to_pdf(build_report(cfg.audit_path)))
+        Path(a.out).write_bytes(markdown_to_pdf(build_report(cfg.audit_path, key=key)))
         print(f"Wrote {a.out}")
         return EXIT_OK
-    text = build_report_html(cfg.audit_path) if fmt == "html" else build_report(cfg.audit_path)
+    text = build_report_html(cfg.audit_path, key=key) if fmt == "html" else build_report(cfg.audit_path, key=key)
     if a.out:
         Path(a.out).write_text(text, encoding="utf-8")
         print(f"Wrote {a.out}")
